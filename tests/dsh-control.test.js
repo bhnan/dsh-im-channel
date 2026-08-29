@@ -61,6 +61,18 @@ test('DshControl resolves and switches the shared session only for an authorized
   );
 });
 
+test('DshControl exposes authorization and can bind a newly created session directly', async () => {
+  const api = new FakeApi();
+  const bindings = fakeBindings();
+  const control = new DshControl({ api, bindings });
+  const message = { chatType: 'p2p', senderId: 'ou_owner', chatId: 'oc_dm' };
+
+  assert.strictEqual(control.isAuthorized('ou_owner'), true);
+  assert.strictEqual(control.isAuthorized('ou_other'), false);
+  assert.strictEqual(await control.bindSession(message, 'default', 'session-new'), 'session-new');
+  assert.strictEqual(await control.resolveSession(message, 'default', 'fallback'), 'session-new');
+});
+
 test('DshControl maps session and model controls to official DSH RPC methods', async () => {
   const api = new FakeApi();
   const control = new DshControl({ api, bindings: fakeBindings() });

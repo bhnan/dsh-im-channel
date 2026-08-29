@@ -56,6 +56,17 @@ class DshControl {
     return this.bindings.resolve(deriveScopeKey(message, accountId), fallbackSessionId);
   }
 
+  /** 当前发送者是否可以使用共享 Session 控制命令。 */
+  isAuthorized(senderId) {
+    return this.bindings.isAuthorized(senderId);
+  }
+
+  /** 直接绑定一个已由当前控制服务创建或验证的 Session。 */
+  async bindSession(message, accountId, sessionId) {
+    this._assertAuthorized(message.senderId);
+    return this.bindings.bind(deriveScopeKey(message, accountId), sessionId);
+  }
+
   /** 将当前飞书范围切换到一个已存在的 DSH Session。 */
   async switchSession(message, accountId, sessionId) {
     this._assertAuthorized(message.senderId);
