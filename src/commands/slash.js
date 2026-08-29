@@ -38,6 +38,8 @@ const COMMANDS = {
   help: { desc: '显示帮助', usage: '/help' },
   new: { desc: '开启新对话 (清空当前会话上下文)', usage: '/new' },
   clear: { desc: '同 /new, 清空会话', usage: '/clear' },
+  sessions: { desc: '列出 DSH 网页端共享 Session', usage: '/sessions' },
+  session: { desc: '查看/切换当前共享 Session', usage: '/session [session-id]' },
   compact: { desc: '压缩当前会话 (减少上下文)', usage: '/compact' },
   model: { desc: '查看/切换模型 (如 /model deepseek-v4-flash)', usage: '/model [name]' },
   status: { desc: '查看当前状态', usage: '/status' },
@@ -135,7 +137,7 @@ function listTools() {
  * @param {string} sessionId 当前会话 ID
  * @returns {Promise<{handled: boolean, reply?: string}>}
  */
-async function handleSlashCommand(config, msg, text, sessionId, log = () => {}) {
+async function handleSlashCommand(config, msg, text, sessionId, log = () => {}, services = {}) {
   if (!isSlashCommand(text)) return { handled: false };
   const { cmd, args } = parseCommand(text);
   if (!COMMANDS[cmd]) {
@@ -159,6 +161,18 @@ async function handleSlashCommand(config, msg, text, sessionId, log = () => {}) 
 
     case 'new':
     case 'clear': {
+      if (services.control) {
+        if (!services.control.isAuthorized(msg.senderId)) {
+          return { handled: true, reply: '❌ 无权执行共享 Session 控制命令。' };
+        }
+        try {
+          const created = await services.control.createSession({});
+          await services.control.bindSession(msg, services.accountId, created);
+          return { handled: true, reply: `✅ 已创建并切换到新 Session: \`${created}\`` };
+        } catch (error) {
+          return { handled: true, reply: `❌ Session 操作失败: ${error.message}` };
+        }
+      }
       const deleted = deleteSession(config, sessionId);
       return {
         handled: true,
@@ -166,6 +180,52 @@ async function handleSlashCommand(config, msg, text, sessionId, log = () => {}) 
           ? '✅ 已开启新对话，历史上下文已清空。'
           : '✅ 已开启新对话。（未找到旧会话文件，首次对话）',
       };
+    }
+
+    case 'sessions': {
+      if (!services.control) {
+        return { handled: true, reply: '❌ 共享 Session 模式未启用，请先配置 DSH_API_URL。' };
+      }
+      if (!services.control.isAuthorized(msg.senderId)) {
+        return { handled: true, reply: '❌ 无权执行共享 Session 控制命令。' };
+      }
+      try {
+        const current = await services.control.resolveSession(msg, services.accountId, sessionId);
+        const items = await services.control.listSessions();
+        if (!items.length) return { handled: true, reply: '当前 DSH Host 暂无可用 Session。' };
+        const lines = [`**DSH Sessions (${items.length})**`, ''];
+        for (const item of items.slice(0, 20)) {
+          const tags = [];
+          if (item.sessionId === current) tags.push('当前');
+          if (item.running) tags.push('运行中');
+          const cwd = item.cwd ? ` · \`${item.cwd}\`` : '';
+          lines.push(`- \`${item.sessionId}\`${tags.length ? ` · **${tags.join('、')}**` : ''}${cwd}`);
+        }
+        if (items.length > 20) lines.push(`- …其余 ${items.length - 20} 个未显示`);
+        lines.push('', '切换: `/session <session-id>`');
+        return { handled: true, reply: lines.join('\n') };
+      } catch (error) {
+        return { handled: true, reply: `❌ Session 操作失败: ${error.message}` };
+      }
+    }
+
+    case 'session': {
+      if (!services.control) {
+        return { handled: true, reply: '❌ 共享 Session 模式未启用，请先配置 DSH_API_URL。' };
+      }
+      if (!services.control.isAuthorized(msg.senderId)) {
+        return { handled: true, reply: '❌ 无权执行共享 Session 控制命令。' };
+      }
+      try {
+        if (!args.length) {
+          const current = await services.control.resolveSession(msg, services.accountId, sessionId);
+          return { handled: true, reply: `当前 Session: \`${current}\`\n\n切换: \`/session <session-id>\`` };
+        }
+        const selected = await services.control.switchSession(msg, services.accountId, args[0]);
+        return { handled: true, reply: `✅ 已切换到 Session: \`${selected}\`` };
+      } catch (error) {
+        return { handled: true, reply: `❌ Session 操作失败: ${error.message}` };
+      }
     }
 
     case 'compact': {
