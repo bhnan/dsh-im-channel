@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const { deriveSessionId } = require('../src/session');
 const { evaluatePolicy } = require('../src/inbound/policy');
@@ -39,6 +40,49 @@ test('scripts: install.js 存在且可解析', () => {
   assert.ok(src.includes('status'));
 });
 
+test('scripts: install 将 DSH_BIN 写入 launchd 配置值而非仅替换注释', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-im-channel-install-'));
+  const homeDir = path.join(root, 'home');
+  const dshHome = path.join(root, 'dsh-home');
+  const dshBin = path.join(root, 'bin', 'dsh');
+  fs.mkdirSync(path.dirname(dshBin), { recursive: true });
+  fs.mkdirSync(homeDir);
+  fs.writeFileSync(dshBin, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+
+  const install = path.join(__dirname, '..', 'scripts', 'install.js');
+  const result = spawnSync(process.execPath, [install, 'install'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOME: homeDir,
+      DSH_HOME: dshHome,
+      DSH_BIN: dshBin,
+      LARK_NODE_BIN: process.execPath,
+      LARK_CLI: '/opt/homebrew/bin/lark-cli',
+      LARK_APP_ID: 'cli_test',
+      LARK_APP_SECRET: 'test-secret',
+      DSH_API_URL: 'http://127.0.0.1:3080',
+      DSH_API_USERNAME: 'bridge-user',
+      DSH_API_PASSWORD: 'api-password',
+      CONTROL_ALLOW_FROM: 'ou_owner',
+    },
+  });
+
+  assert.strictEqual(result.status, 0, result.stderr);
+  const plist = fs.readFileSync(path.join(homeDir, 'Library', 'LaunchAgents', 'com.dsh.lark-bridge.plist'), 'utf8');
+  const dshBinValue = plist.match(/<key>DSH_BIN<\/key>[\s\S]*?<string>([^<]+)<\/string>/)?.[1];
+  assert.strictEqual(dshBinValue, dshBin);
+  assert.doesNotMatch(plist, /<string>__DSH_BIN__<\/string>/);
+  for (const [name, value] of [
+    ['DSH_API_URL', 'http://127.0.0.1:3080'],
+    ['DSH_API_USERNAME', 'bridge-user'],
+    ['DSH_API_PASSWORD', 'api-password'],
+    ['CONTROL_ALLOW_FROM', 'ou_owner'],
+  ]) {
+    assert.match(plist, new RegExp(`<key>${name}<\\/key>[\\s\\S]*?<string>${value}<\\/string>`));
+  }
+});
+
 test('scripts: setup.js 存在且含 6 步引导', () => {
   const p = path.join(__dirname, '..', 'scripts', 'setup.js');
   assert.ok(fs.existsSync(p));
@@ -54,6 +98,14 @@ test('scripts: 插件目录包含必需文件', () => {
   assert.ok(fs.existsSync(path.join(pluginDir, 'lib', 'index.js')), '缺少 lib/index.js');
   assert.ok(fs.existsSync(path.join(pluginDir, 'lib', 'startup.js')), '缺少 lib/startup.js');
   assert.ok(fs.existsSync(path.join(pluginDir, 'package.json')), '缺少 package.json');
+});
+
+test('bridge: 启动入口把共享 Host 注入命令和普通消息路由', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
+  assert.match(source, /startSharedHost\(config, log\)/);
+  assert.match(source, /handleSlashCommand\([\s\S]*?control:\s*sharedControl/);
+  assert.match(source, /sessionRouter\.runSession\([\s\S]*?control:\s*sharedControl/);
+  assert.match(source, /sharedControl\?\.stop\(\)/);
 });
 
 // ---------- 文档 URL 构造 (create_document 修复验证) ----------

@@ -104,7 +104,9 @@
 | 命令 | 说明 |
 |---|---|
 | `/help` | 显示所有可用命令 |
-| `/new` / `/clear` | 开启新对话（清空当前会话上下文） |
+| `/sessions` | 列出 DSH 网页端共享 Session（需共享模式与控制白名单） |
+| `/session [session-id]` | 查看或切换当前共享 Session |
+| `/new` / `/clear` | 共享模式下创建并绑定新 Session；旧模式下清空当前上下文 |
 | `/compact` | 压缩当前会话（减少上下文） |
 | `/model [name]` | 查看 / 切换模型（如 `/model deepseek-v4-flash`） |
 | `/status` / `/state` | 查看当前状态（模型/会话/工具/运行时长） |
@@ -166,6 +168,10 @@ npm run features      # 功能清单
 | `STREAM_THROTTLE_CHARS` | `3` | 流式节流字符阈值 |
 | `ALLOW_USER_WRITES` | — | 允许 user 身份写操作（默认仅发消息用 bot） |
 | `DSH_BIN` / `DSH_HOME` | — | DSH 路径 |
+| `DSH_API_URL` | — | DSH Web Host 地址；配置后启用浏览器共享 Session（如 `http://127.0.0.1:3080`） |
+| `DSH_API_USERNAME` | — | DSH Web Host 登录用户名（启用认证时） |
+| `DSH_API_PASSWORD` | — | DSH Web Host 登录密码；仅放环境变量或未提交的 `config.json` |
+| `CONTROL_ALLOW_FROM` | — | 可执行 `/sessions`、`/session`、共享 `/new` 的 open_id 白名单，逗号分隔；默认拒绝 |
 
 ---
 
@@ -175,6 +181,7 @@ npm run features      # 功能清单
 - **私聊**：直接在飞书单聊机器人
 - **群聊**：拉机器人进群，直接发消息（或 @，取决于配置）
 - **话题**：在群消息上创建话题，获得独立上下文
+- **共享 Session**：配置 `DSH_API_URL` 后，飞书和 DSH 浏览器端读取同一批 Session；用 `/sessions` 查看、`/session <id>` 切换
 
 ### 飞书工具
 直接用自然语言告诉 agent：

@@ -18,6 +18,10 @@ const DEFAULTS = {
   appSecret: '',                    // 必填
   dshBin: path.join(os.homedir(), '.local', 'bin', 'dsh'),
   dshHome: path.join(os.homedir(), '.dsh'),
+  dshApiUrl: '',                    // 共享 DSH Web Host；空值保持旧子进程模式
+  dshApiUsername: '',               // 可选 Basic Auth 用户名
+  dshApiPassword: '',               // 可选 Basic Auth 密码（勿提交）
+  controlAllowFrom: [],             // Session 控制命令 open_id 白名单（默认拒绝）
   requireMention: false,            // 群聊是否要求 @ 才响应
   respondToMentionAll: true,
   typingChunkMs: 250,               // 卡片打字机每块间隔
@@ -60,6 +64,10 @@ function loadFromEnv() {
     appSecret: process.env.LARK_APP_SECRET || '',
     dshBin: process.env.DSH_BIN || '',
     dshHome: process.env.DSH_HOME || '',
+    dshApiUrl: process.env.DSH_API_URL || '',
+    dshApiUsername: process.env.DSH_API_USERNAME || '',
+    dshApiPassword: process.env.DSH_API_PASSWORD || '',
+    controlAllowFrom: (process.env.CONTROL_ALLOW_FROM || '').split(',').map((s) => s.trim()).filter(Boolean),
     requireMention: process.env.REQUIRE_MENTION === 'true',
     respondToMentionAll: process.env.RESPOND_TO_MENTION_ALL !== 'false',
     typingChunkMs: parseInt(process.env.TYPING_CHUNK_MS || '', 10) || undefined,

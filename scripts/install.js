@@ -33,6 +33,16 @@ function run(cmd, args) {
   return { code: r.status, out: r.stdout || '', err: r.stderr || '' };
 }
 
+function replacePlistString(plist, placeholder, value) {
+  const escaped = value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+  return plist.replace(`<string>${placeholder}</string>`, `<string>${escaped}</string>`);
+}
+
 function install() {
   console.log('=== 安装 DSH ↔ Feishu Bridge 插件 ===\n');
 
@@ -73,13 +83,11 @@ function install() {
   } else {
     // 从环境变量或 config.json 读取 appSecret (模板注入, 不提交明文)
     const cfgPath = path.join(BRIDGE_DIR, 'config.json');
-    let appSecret = process.env.LARK_APP_SECRET || '';
+    let config = {};
     try {
-      if (!appSecret && fs.existsSync(cfgPath)) {
-        const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-        appSecret = cfg.appSecret || '';
-      }
+      if (fs.existsSync(cfgPath)) config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
     } catch (e) {}
+    const appSecret = process.env.LARK_APP_SECRET || config.appSecret || '';
 
     let plist = fs.readFileSync(PLIST_SRC, 'utf8');
     // 替换路径: 匹配 plist 中任意含桥目录的 /Users 路径 (兼容旧名 dsh-lark-bridge 与新名 dsh-im-channel)
@@ -93,25 +101,35 @@ function install() {
     });
     // 注入 appSecret / appId (模板占位符 → 实际值)
     if (appSecret) {
-      plist = plist.replace('__LARK_APP_SECRET__', appSecret);
+      plist = replacePlistString(plist, '__LARK_APP_SECRET__', appSecret);
     } else {
       console.warn('   ⚠️ 未找到 LARK_APP_SECRET (env 或 config.json), plist 将保留占位符');
     }
-    const appId = process.env.LARK_APP_ID || '';
+    const appId = process.env.LARK_APP_ID || config.appId || '';
     if (appId) {
-      plist = plist.replace('__LARK_APP_ID__', appId);
+      plist = replacePlistString(plist, '__LARK_APP_ID__', appId);
     } else {
       console.warn('   ⚠️ 未找到 LARK_APP_ID (env 或 config.json), plist 将保留占位符');
+    }
+    const sharedHostValues = {
+      __DSH_API_URL__: process.env.DSH_API_URL || config.dshApiUrl || '',
+      __DSH_API_USERNAME__: process.env.DSH_API_USERNAME || config.dshApiUsername || '',
+      __DSH_API_PASSWORD__: process.env.DSH_API_PASSWORD || config.dshApiPassword || '',
+      __CONTROL_ALLOW_FROM__: process.env.CONTROL_ALLOW_FROM
+        || (Array.isArray(config.controlAllowFrom) ? config.controlAllowFrom.join(',') : ''),
+    };
+    for (const [placeholder, value] of Object.entries(sharedHostValues)) {
+      plist = replacePlistString(plist, placeholder, value);
     }
     // 注入用户级路径 (可移植性: 换机器自动用当前用户的实际路径)
     const home = os.homedir();
     const dshHome = process.env.DSH_HOME || path.join(home, '.dsh');
     const dshBin = process.env.DSH_BIN || path.join(home, '.local', 'bin', 'dsh');
     const pathVal = [path.join(home, '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'].join(':');
-    plist = plist.replace('__HOME__', home);
-    plist = plist.replace('__DSH_HOME__', dshHome);
-    plist = plist.replace('__DSH_BIN__', dshBin);
-    plist = plist.replace('__PATH__', pathVal);
+    plist = replacePlistString(plist, '__HOME__', home);
+    plist = replacePlistString(plist, '__DSH_HOME__', dshHome);
+    plist = replacePlistString(plist, '__DSH_BIN__', dshBin);
+    plist = replacePlistString(plist, '__PATH__', pathVal);
     fs.mkdirSync(path.dirname(PLIST_DEST), { recursive: true });
     fs.writeFileSync(PLIST_DEST, plist);
     run('launchctl', ['bootout', `gui/${process.getuid()}`, 'com.dsh.lark-bridge']);

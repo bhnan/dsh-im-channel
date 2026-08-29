@@ -42,6 +42,8 @@ const mergeForward = require('./inbound/merge-forward');
 const commentHandler = require('./inbound/comment');
 const mention = require('./outbound/mention');
 const pacing = require('./core/pacing');
+const sessionRouter = require('./core/session-router');
+const { startSharedHost } = require('./core/bridge-runtime');
 const { findLarkCli } = require('./core/lark-cli');
 const status = require('./core/status');
 const { startStatusServer } = require('./http-status');
@@ -103,6 +105,7 @@ async function chAppendFooter(config, messageId, bodyText, footerText) {
 }
 
 const BRIDGE_DIR = __dirname.replace(/\/src$/, '');
+let sharedControl = null;
 
 // 最近消息上下文映射: messageId → {chatId, chatType, threadId, rootId, senderId, senderIsBot}
 // 用于 reaction 事件找到对应会话
@@ -272,7 +275,10 @@ async function processMessage(config, msg, accountId) {
   // 斜杠命令拦截: /new /compact /model /status 等 (不消耗 agent 调用)
   if (slash.isSlashCommand(content)) {
     const sessionId = session.deriveSessionId(msg, accountId);
-    const result = await slash.handleSlashCommand(config, msg, content, sessionId, log);
+    const result = await slash.handleSlashCommand(config, msg, content, sessionId, log, {
+      control: sharedControl,
+      accountId,
+    });
     if (result.handled) {
       const { text: cmdText } = mention.convertMentions(result.reply || '');
       await chSendText(config, msg.chatId, cmdText, { replyTo: msg.messageId });
@@ -310,9 +316,17 @@ async function processMessage(config, msg, accountId) {
     let deltaDone = false;
     let streamOut = { reply: '', sessionId: '', tools: [], thinking: '', streamMsgId: null, streamedText: '' };
     {
-      const runPromise = session.runSession(config, msg, prompt, log, accountId, (chunk) => {
-        deltaQueue.push(chunk); // 生产: 实时推入队列
-      });
+      const runPromise = sessionRouter.runSession(
+        config,
+        msg,
+        prompt,
+        log,
+        accountId,
+        (chunk) => {
+          deltaQueue.push(chunk); // 生产: 实时推入队列
+        },
+        { control: sharedControl }
+      );
       // 消费: 同时启动卡片流式, 从队列取增量实时显示
       const consumePromise = (async () => {
         try {
@@ -420,6 +434,7 @@ async function main() {
   // 显式 chdir 到项目目录 (修复 launchd WorkingDirectory 含空格导致的 getcwd 错误)
   try { process.chdir(BRIDGE_DIR); } catch (e) { log('[start] chdir 失败:', e.message); }
   const config = loadConfig(BRIDGE_DIR);
+  sharedControl = await startSharedHost(config, log);
   const accountIds = Object.keys(config.accounts);
   log('=== DSH-Lark Bridge (模块化版) 启动 ===');
   log('账号数: ' + accountIds.length, accountIds.join(', '));
@@ -599,7 +614,7 @@ async function main() {
   log('所有账号处理完成, 等待渠道消息...');
 }
 
-process.on('SIGTERM', () => { log('SIGTERM, 退出'); process.exit(0); });
-process.on('SIGINT', () => { log('SIGINT, 退出'); process.exit(0); });
+process.on('SIGTERM', () => { sharedControl?.stop(); log('SIGTERM, 退出'); process.exit(0); });
+process.on('SIGINT', () => { sharedControl?.stop(); log('SIGINT, 退出'); process.exit(0); });
 
 main().catch((e) => { log('fatal', e); process.exit(1); });

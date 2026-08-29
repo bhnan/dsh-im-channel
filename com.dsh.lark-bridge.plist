@@ -10,6 +10,15 @@
 		<key>DSH_HOME</key>
 		<!-- install.js 注入: __DSH_HOME__ -->
 		<string>__DSH_HOME__</string>
+		<key>DSH_API_URL</key>
+		<string>__DSH_API_URL__</string>
+		<key>DSH_API_USERNAME</key>
+		<string>__DSH_API_USERNAME__</string>
+		<key>DSH_API_PASSWORD</key>
+		<!-- ⚠️ 模板: 安装时注入，请勿提交真实密码 -->
+		<string>__DSH_API_PASSWORD__</string>
+		<key>CONTROL_ALLOW_FROM</key>
+		<string>__CONTROL_ALLOW_FROM__</string>
 		<key>HOME</key>
 		<!-- install.js 注入: __HOME__ -->
 		<string>__HOME__</string>
