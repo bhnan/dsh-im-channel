@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { startSharedHost } = require('../src/core/bridge-runtime');
+const { startSharedHost, settleSessionRun } = require('../src/core/bridge-runtime');
 
 test('startSharedHost starts and returns the configured control service', async () => {
   let started = 0;
@@ -38,4 +38,23 @@ test('startSharedHost fails back to legacy mode and redacts startup errors', asy
   assert.strictEqual(stopped, 1);
   assert.match(logs.join('\n'), /共享 Session 模式启动失败/);
   assert.doesNotMatch(logs.join('\n'), /private-value/);
+});
+
+test('settleSessionRun preserves the fallback session id when a run times out', async () => {
+  assert.strictEqual(typeof settleSessionRun, 'function');
+  const logs = [];
+
+  const result = await settleSessionRun(
+    Promise.reject(new Error('DSH response timed out')),
+    'feishu-ou_owner',
+    (line) => logs.push(line)
+  );
+
+  assert.deepStrictEqual(result, {
+    reply: '',
+    sessionId: 'feishu-ou_owner',
+    tools: [],
+    thinking: '',
+  });
+  assert.match(logs.join('\n'), /DSH response timed out/);
 });

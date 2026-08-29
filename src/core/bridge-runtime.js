@@ -17,4 +17,14 @@ async function startSharedHost(config, log = () => {}, create = createSharedHost
   }
 }
 
-module.exports = { startSharedHost };
+/** Resolve a Session run and retain its derived id when the DSH request fails. */
+async function settleSessionRun(runPromise, fallbackSessionId, log = () => {}) {
+  try {
+    return await runPromise;
+  } catch (error) {
+    log(`[stream] DSH 处理失败: ${error.message}`);
+    return { reply: '', sessionId: fallbackSessionId, tools: [], thinking: '' };
+  }
+}
+
+module.exports = { startSharedHost, settleSessionRun };

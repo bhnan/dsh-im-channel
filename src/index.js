@@ -43,7 +43,7 @@ const commentHandler = require('./inbound/comment');
 const mention = require('./outbound/mention');
 const pacing = require('./core/pacing');
 const sessionRouter = require('./core/session-router');
-const { startSharedHost } = require('./core/bridge-runtime');
+const { startSharedHost, settleSessionRun } = require('./core/bridge-runtime');
 const { findLarkCli } = require('./core/lark-cli');
 const status = require('./core/status');
 const { startStatusServer } = require('./http-status');
@@ -316,6 +316,7 @@ async function processMessage(config, msg, accountId) {
     let deltaDone = false;
     let streamOut = { reply: '', sessionId: '', tools: [], thinking: '', streamMsgId: null, streamedText: '' };
     {
+      const fallbackSessionId = session.deriveSessionId(msg, accountId);
       const runPromise = sessionRouter.runSession(
         config,
         msg,
@@ -357,10 +358,7 @@ async function processMessage(config, msg, accountId) {
       let consumed = { msgId: null, seen: '' };
       let result;
       try {
-        result = await runPromise;
-      } catch (e) {
-        log('[stream] DSH 处理失败:', e.message);
-        result = { reply: '', sessionId, tools: [], thinking: '' };
+        result = await settleSessionRun(runPromise, fallbackSessionId, log);
       } finally {
         deltaDone = true; // 通知消费结束 (无论成功失败)
         consumed = await consumePromise.catch(() => ({ msgId: null, seen: '' }));
