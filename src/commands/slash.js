@@ -20,6 +20,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
+const { loadModelCatalog, resolveModelTarget } = require('../core/model-catalog');
 
 /** 异步运行子进程 (不阻塞事件循环), 返回 {code, out} */
 function runAsync(bin, args, opts = {}) {
@@ -198,11 +199,14 @@ async function handleSlashCommand(config, msg, text, sessionId, log = () => {}, 
           const tags = [];
           if (item.sessionId === current) tags.push('当前');
           if (item.running) tags.push('运行中');
+          if (item.blank) tags.push('空');
+          const title = item.projections?.values?.title;
+          const shortId = item.sessionId.replace(/^session-/, '').slice(0, 8);
           const cwd = item.cwd ? ` · \`${item.cwd}\`` : '';
-          lines.push(`- \`${item.sessionId}\`${tags.length ? ` · **${tags.join('、')}**` : ''}${cwd}`);
+          lines.push(`- ${title ? `**${title}**` : '（无标题）'} · \`${shortId}\`${tags.length ? ` · **${tags.join('、')}**` : ''}${cwd}`);
         }
         if (items.length > 20) lines.push(`- …其余 ${items.length - 20} 个未显示`);
-        lines.push('', '切换: `/session <session-id>`');
+        lines.push('', '切换: `/session <session-id 或短 id>`');
         return { handled: true, reply: lines.join('\n') };
       } catch (error) {
         return { handled: true, reply: `❌ Session 操作失败: ${error.message}` };
@@ -244,16 +248,59 @@ async function handleSlashCommand(config, msg, text, sessionId, log = () => {}, 
       if (msg.chatType === 'group') {
         return { handled: true, reply: '❌ /model 仅可在私聊中执行（切换的是全局默认模型）。' };
       }
+      const catalog = loadModelCatalog(config);
       const current = getCurrentModel(config);
+
       if (!args.length) {
-        return { handled: true, reply: `当前模型: \`${current}\`\n\n切换: \`/model <模型名>\`` };
+        if (!catalog || !catalog.providers.length) {
+          return { handled: true, reply: `当前模型: \`${current}\`\n\n（未找到模型目录，settings.yaml 中无 llm-pi-ai.providers）\n切换: \`/model <模型名>\`` };
+        }
+        const dm = catalog.defaultModel;
+        const lines = [`📊 **模型目录**　当前默认: ✅ \`${dm ? dm.model : current}\`${dm ? `（${dm.provider}）` : ''}`, ''];
+        // 默认 provider 排最前，其余按配置顺序。
+        const sorted = [...catalog.providers].sort((a, b) => (b.id === (dm && dm.provider)) - (a.id === (dm && dm.provider)));
+        for (const provider of sorted) {
+          lines.push(`**${provider.displayName}**`);
+          for (const m of provider.models) {
+            const isDefault = dm && provider.id === dm.provider && m.id === dm.model;
+            const eff = m.efforts && m.efforts.length ? `　effort: ${m.efforts.join('/')}` : '';
+            lines.push(`${isDefault ? '✅' : '　'} \`${m.id}\`${eff}`);
+          }
+          lines.push('');
+        }
+        lines.push('切换: `/model <模型名> [effort]`，如 `/model deepseek-v4-pro high`');
+        lines.push('（对当前会话生效；重名模型按最近一次选择解析，可用 `provider/模型名` 消除歧义）');
+        return { handled: true, reply: lines.join('\n') };
       }
+
       const target = args[0];
+      const effort = args[1];
+
+      if (services.control) {
+        // 共享模式：对本飞书范围绑定的 Session 生效（session/selectModel）。
+        try {
+          const bound = await services.control.resolveSession(msg, services.accountId, sessionId);
+          if (!/^session-/.test(bound)) {
+            return { handled: true, reply: '当前对话尚未绑定 DSH Session，请先发送 `/new` 创建后再切换模型。' };
+          }
+          const resolved = catalog
+            ? resolveModelTarget(catalog, target, effort)
+            : { provider: undefined, model: target, ...(effort ? { reasoningEffort: effort } : {}) };
+          if (resolved.error) return { handled: true, reply: `❌ ${resolved.error}` };
+          await services.control.selectModel(bound, resolved);
+          const effortNote = resolved.reasoningEffort ? `，effort: \`${resolved.reasoningEffort}\`` : '';
+          return { handled: true, reply: `✅ 当前会话已切换模型: \`${resolved.model}\`${effortNote}（provider: \`${resolved.provider || '默认'}\`）` };
+        } catch (error) {
+          return { handled: true, reply: `❌ 模型切换失败: ${error.message}` };
+        }
+      }
+
+      // 旧子进程模式：写 settings.yaml 全局默认（effort 不支持）。
       const r = setModel(config, target);
       return {
         handled: true,
         reply: r.ok
-          ? `✅ 已切换模型: \`${current}\` → \`${target}\``
+          ? `✅ 已切换模型: \`${current}\` → \`${target}\`${effort ? '（旧模式不支持 effort 参数，已忽略）' : ''}`
           : `❌ 切换失败: ${r.error}`,
       };
     }

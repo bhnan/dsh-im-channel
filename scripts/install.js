@@ -19,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { spawnSync } = require('child_process');
+const { findDshBin } = require('../src/core/dsh-bin');
 
 const BRIDGE_DIR = path.resolve(__dirname, '..');
 const DSH_HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
@@ -124,7 +125,7 @@ function install() {
     // 注入用户级路径 (可移植性: 换机器自动用当前用户的实际路径)
     const home = os.homedir();
     const dshHome = process.env.DSH_HOME || path.join(home, '.dsh');
-    const dshBin = process.env.DSH_BIN || path.join(home, '.local', 'bin', 'dsh');
+    const dshBin = findDshBin();
     const pathVal = [path.join(home, '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'].join(':');
     plist = replacePlistString(plist, '__HOME__', home);
     plist = replacePlistString(plist, '__DSH_HOME__', dshHome);

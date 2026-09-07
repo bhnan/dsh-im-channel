@@ -51,7 +51,7 @@ test('settleSessionRun preserves the fallback session id when a run times out', 
   );
 
   assert.deepStrictEqual(result, {
-    reply: '',
+    reply: '❌ DSH 处理失败: DSH response timed out',
     sessionId: 'feishu-ou_owner',
     tools: [],
     thinking: '',

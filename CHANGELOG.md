@@ -2,7 +2,19 @@
 
 本项目所有重要变更均记录在此文件，格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.3.0] - 2026-09-08
+
+> 要求 dsh >= 0.1.2（Gateway wire，含 0.1.3）。
+
+### Changed
+- **共享模式适配 dsh ≥ 0.1.2（Gateway wire，含 0.1.3）**: unary RPC 改为 `POST /api/session/<method>`（端点带斜杠、args 单对象包装）；事件通道从旧 `events.mux` WebSocket 迁移到 `/api/remote.mux` 流（`session/follow` 按 Session 订阅）
+- **认证重构**: 0.1.2 起无登录路由，默认从 `$DSH_HOME/.credentials.yaml` 的 `client-connection/browser-session` 记录离线铸造会话 Cookie；新增 `DSH_API_TOKEN`（launch token 交换）；`DSH_API_USERNAME/PASSWORD` 降级为 auth-basic 插件主机兼容路径
+- **prompt 归因**: 客户端铸造 `requestId` 随 `session/prompt` 提交，follow 流按 `user/message.source.rpcId` 认领后消费同 turn 事件；turn 以 error 收尾且无输出时向上游抛出真实错误
+- **斜杠命令自适应**: `commands/execute` 参数名跨版本自适应（0.1.2 `images` / 0.1.3 `submittedAttachments`），prompt 先于 RPC 返回的快失败路由不再触发 unhandledRejection
+- 新增 `scripts/verify-dsh-control.js` 控制面诊断（认证/列表/创建/prompt/命令全链路）
+
+### Removed
+- 交互审批桥接（`answerApproval`）：0.1.2 起 Gateway wire 不透传审批，权限由 profile 权限预设裁决；调用会得到明确报错
 
 ### Added
 - 首个开源版本：DSH ↔ Feishu/Lark 完整双向桥

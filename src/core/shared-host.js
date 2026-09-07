@@ -13,8 +13,11 @@ function createSharedHost(config, log = () => {}, dependencies = {}) {
   const Control = dependencies.DshControl || DshControl;
   const api = new ApiClient({
     baseUrl: config.dshApiUrl,
+    dshHome: config.dshHome,
+    token: config.dshApiToken || '',
     username: config.dshApiUsername,
     password: config.dshApiPassword,
+    log,
   });
   const bindings = new Bindings({
     filePath: path.join(config.dshHome, 'lark-bridge', 'session-bindings.json'),

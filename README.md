@@ -168,9 +168,9 @@ npm run features      # 功能清单
 | `STREAM_THROTTLE_CHARS` | `3` | 流式节流字符阈值 |
 | `ALLOW_USER_WRITES` | — | 允许 user 身份写操作（默认仅发消息用 bot） |
 | `DSH_BIN` / `DSH_HOME` | — | DSH 路径 |
-| `DSH_API_URL` | — | DSH Web Host 地址；配置后启用浏览器共享 Session（如 `http://127.0.0.1:3080`） |
-| `DSH_API_USERNAME` | — | DSH Web Host 登录用户名（启用认证时） |
-| `DSH_API_PASSWORD` | — | DSH Web Host 登录密码；仅放环境变量或未提交的 `config.json` |
+| `DSH_API_URL` | — | DSH Web Host 地址；配置后启用浏览器共享 Session（如 `http://127.0.0.1:3080`）。要求 **dsh ≥ 0.1.2（含 0.1.3）**（Gateway wire） |
+| `DSH_API_TOKEN` | — | 可选。`dsh web` 启动输出里的 launch token（`?token=`）；不填则自动从 `$DSH_HOME/.credentials.yaml` 铸造会话 Cookie。Host 重启会换 token，推荐用默认铸造路径 |
+| `DSH_API_USERNAME` / `DSH_API_PASSWORD` | — | 仅旧式 auth-basic 插件主机需要（核心 dsh ≥ 0.1.2 无登录路由） |
 | `CONTROL_ALLOW_FROM` | — | 可执行 `/sessions`、`/session`、共享 `/new` 的 open_id 白名单，逗号分隔；默认拒绝 |
 
 ---

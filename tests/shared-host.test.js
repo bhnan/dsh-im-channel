@@ -40,8 +40,11 @@ test('createSharedHost constructs API, bindings, and control without exposing cr
   assert.ok(control instanceof FakeControl);
   assert.deepStrictEqual(seen.api, {
     baseUrl: 'http://127.0.0.1:3080',
+    dshHome: '/tmp/dsh-home',
+    token: '',
     username: 'bridge-user',
     password: 'private-value',
+    log,
   });
   assert.deepStrictEqual(seen.bindings, {
     filePath: path.join('/tmp/dsh-home', 'lark-bridge', 'session-bindings.json'),

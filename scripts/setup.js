@@ -20,6 +20,7 @@ const path = require('path');
 const os = require('os');
 const readline = require('readline');
 const { spawnSync } = require('child_process');
+const { findDshBin } = require('../src/core/dsh-bin');
 
 const BRIDGE_DIR = path.resolve(__dirname, '..');
 
@@ -45,10 +46,11 @@ function findLarkCli() {
 async function step1_prereqs() {
   console.log('\n=== 步骤 1/6: 前置环境检查 ===');
   const larkCli = findLarkCli();
+  const dshBin = findDshBin();
   const checks = [
     ['Node.js', () => run('node', ['--version']).code === 0],
     ['lark-cli', () => fs.existsSync(larkCli)],
-    ['dsh', () => fs.existsSync(path.join(os.homedir(), '.local', 'bin', 'dsh'))],
+    ['dsh', () => fs.existsSync(dshBin)],
     ['npm 依赖', () => fs.existsSync(path.join(BRIDGE_DIR, 'node_modules'))],
   ];
   let allOk = true;

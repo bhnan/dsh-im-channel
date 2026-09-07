@@ -12,14 +12,16 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { findDshBin } = require('./core/dsh-bin');
 
 const DEFAULTS = {
   appId: '',
   appSecret: '',                    // 必填
-  dshBin: path.join(os.homedir(), '.local', 'bin', 'dsh'),
+  dshBin: findDshBin(),
   dshHome: path.join(os.homedir(), '.dsh'),
   dshApiUrl: '',                    // 共享 DSH Web Host；空值保持旧子进程模式
-  dshApiUsername: '',               // 可选 Basic Auth 用户名
+  dshApiToken: '',                  // dsh >= 0.1.2 launch token（dsh web 启动输出中的 ?token=，可选）
+  dshApiUsername: '',               // 可选 Basic Auth 用户名（仅 auth-basic 插件主机需要）
   dshApiPassword: '',               // 可选 Basic Auth 密码（勿提交）
   controlAllowFrom: [],             // Session 控制命令 open_id 白名单（默认拒绝）
   requireMention: false,            // 群聊是否要求 @ 才响应
@@ -65,6 +67,7 @@ function loadFromEnv() {
     dshBin: process.env.DSH_BIN || '',
     dshHome: process.env.DSH_HOME || '',
     dshApiUrl: process.env.DSH_API_URL || '',
+    dshApiToken: process.env.DSH_API_TOKEN || '',
     dshApiUsername: process.env.DSH_API_USERNAME || '',
     dshApiPassword: process.env.DSH_API_PASSWORD || '',
     controlAllowFrom: (process.env.CONTROL_ALLOW_FROM || '').split(',').map((s) => s.trim()).filter(Boolean),
@@ -121,7 +124,7 @@ function loadConfig(dir) {
   const config = merge(DEFAULTS, envCfg, fileCfg);
 
   // 派生路径
-  config.dshBin = config.dshBin || path.join(os.homedir(), '.local', 'bin', 'dsh');
+  config.dshBin = config.dshBin || findDshBin();
   config.dshHome = config.dshHome || path.join(os.homedir(), '.dsh');
   config.mediaDir = config.mediaDir || path.join(dir, 'media');
   config.larkSessionPatch = path.join(

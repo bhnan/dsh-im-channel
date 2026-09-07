@@ -92,6 +92,81 @@ test('scripts: setup.js 存在且含 6 步引导', () => {
   }
 });
 
+test('scripts: setup 从 PATH 发现 Homebrew 等位置安装的 dsh', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-im-channel-'));
+  const binDir = path.join(root, 'bin');
+  const homeDir = path.join(root, 'home');
+  fs.mkdirSync(binDir);
+  fs.mkdirSync(homeDir);
+  for (const name of ['dsh', 'lark-cli']) {
+    const executable = path.join(binDir, name);
+    fs.writeFileSync(executable, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  }
+
+  const setup = path.join(__dirname, '..', 'scripts', 'setup.js');
+  const result = spawnSync(process.execPath, [setup], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: homeDir, PATH: `${binDir}:${process.env.PATH}` },
+    input: '',
+  });
+
+  assert.match(result.stdout, /✅ dsh/);
+});
+
+test('config: 默认使用 PATH 中的 dsh 可执行文件', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-im-channel-config-'));
+  const binDir = path.join(root, 'bin');
+  const homeDir = path.join(root, 'home');
+  const configDir = path.join(root, 'config');
+  fs.mkdirSync(binDir);
+  fs.mkdirSync(homeDir);
+  fs.mkdirSync(configDir);
+  const executable = path.join(binDir, 'dsh');
+  fs.writeFileSync(executable, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(configDir, 'config.json'), JSON.stringify({ appSecret: 'test-secret' }));
+
+  const configModule = path.join(__dirname, '..', 'src', 'config.js');
+  const source = `const { loadConfig } = require(${JSON.stringify(configModule)}); process.stdout.write(loadConfig(${JSON.stringify(configDir)}).dshBin);`;
+  const result = spawnSync(process.execPath, ['-e', source], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: homeDir, PATH: `${binDir}:${process.env.PATH}`, DSH_BIN: '' },
+  });
+
+  assert.strictEqual(result.status, 0, result.stderr);
+  assert.strictEqual(result.stdout, executable);
+});
+
+test('config: 共享 DSH Host 环境变量按安全默认加载', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-im-channel-shared-config-'));
+  const homeDir = path.join(root, 'home');
+  const configDir = path.join(root, 'config');
+  fs.mkdirSync(homeDir);
+  fs.mkdirSync(configDir);
+  fs.writeFileSync(path.join(configDir, 'config.json'), JSON.stringify({ appSecret: 'test-secret' }));
+
+  const configModule = path.join(__dirname, '..', 'src', 'config.js');
+  const source = `const { loadConfig } = require(${JSON.stringify(configModule)}); const c = loadConfig(${JSON.stringify(configDir)}); process.stdout.write(JSON.stringify({url:c.dshApiUrl,username:c.dshApiUsername,password:c.dshApiPassword,allow:c.controlAllowFrom}));`;
+  const result = spawnSync(process.execPath, ['-e', source], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOME: homeDir,
+      DSH_API_URL: 'http://127.0.0.1:3080',
+      DSH_API_USERNAME: 'bridge-user',
+      DSH_API_PASSWORD: 'test-password',
+      CONTROL_ALLOW_FROM: 'ou_owner, ou_admin',
+    },
+  });
+
+  assert.strictEqual(result.status, 0, result.stderr);
+  assert.deepStrictEqual(JSON.parse(result.stdout), {
+    url: 'http://127.0.0.1:3080',
+    username: 'bridge-user',
+    password: 'test-password',
+    allow: ['ou_owner', 'ou_admin'],
+  });
+});
+
 test('scripts: 插件目录包含必需文件', () => {
   const pluginDir = path.join(__dirname, '..', 'dsh-lark-session');
   assert.ok(fs.existsSync(path.join(pluginDir, 'cordis.patch.yml')), '缺少 cordis.patch.yml');

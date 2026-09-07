@@ -169,7 +169,7 @@ function main() {
 
   // bridge 进程
   const ps = run('/bin/ps', ['aux']);
-  const bridgeRunning = ps.out.includes('dsh-lark-bridge') && ps.out.includes('node');
+  const bridgeRunning = ps.out.includes('dsh-im-channel') && ps.out.includes('node');
   report('bridge 进程', bridgeRunning, '', '检查 bridge.log 排错');
   console.log();
 

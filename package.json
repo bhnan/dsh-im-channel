@@ -1,6 +1,6 @@
 {
   "name": "dsh-im-channel",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Multi-channel IM bridge for DeepSeek Harness: Feishu, Telegram, DingTalk, Slack, Discord — persistent sessions, true streaming, slash commands",
   "main": "src/plugin.js",
   "scripts": {

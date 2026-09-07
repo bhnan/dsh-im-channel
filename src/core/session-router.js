@@ -11,7 +11,7 @@ async function runSession(config, message, prompt, log = () => {}, accountId, on
 
   const fallbackSessionId = legacySession.deriveSessionId(message, accountId);
   const sessionId = await options.control.resolveSession(message, accountId, fallbackSessionId);
-  const result = await options.control.prompt(sessionId, prompt, { onDelta });
+  const result = await options.control.prompt(sessionId, prompt, { onDelta, onStatus: options.onStatus });
   return {
     reply: result.text,
     sessionId,

@@ -46,9 +46,19 @@ test('/sessions lists shared DSH sessions and marks the current binding', async 
   const result = await handleSlashCommand(config, owner, '/sessions', 'fallback', () => {}, services(control));
 
   assert.strictEqual(result.handled, true);
-  assert.match(result.reply, /session-a.*当前/s);
-  assert.match(result.reply, /session-b.*运行中/s);
-  assert.match(result.reply, /\/session <session-id>/);
+  assert.match(result.reply, /（无标题） · `a`.*当前/s);
+  assert.match(result.reply, /`b`.*运行中/s);
+  assert.match(result.reply, /\/workspace\/a/);
+  assert.match(result.reply, /\/session <session-id 或短 id>/);
+});
+
+test('/sessions shows the projected title when available', async () => {
+  const control = createControl();
+  control.listSessions = async () => [
+    { sessionId: 'session-t', running: false, updatedAt: 20, projections: { values: { title: '修复登录 bug' } } },
+  ];
+  const result = await handleSlashCommand(config, owner, '/sessions', 'fallback', () => {}, services(control));
+  assert.match(result.reply, /\*\*修复登录 bug\*\*/);
 });
 
 test('/sessions reports an empty DSH host without inventing sessions', async () => {

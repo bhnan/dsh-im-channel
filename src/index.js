@@ -281,7 +281,17 @@ async function processMessage(config, msg, accountId) {
     });
     if (result.handled) {
       const { text: cmdText } = mention.convertMentions(result.reply || '');
-      await chSendText(config, msg.chatId, cmdText, { replyTo: msg.messageId });
+      // 命令回复走卡片 markdown（post 纯文本不渲染 ** / ` 语法），失败回退纯文本。
+      try {
+        let sent = false;
+        await chStreamReplyLive(config, msg.chatId, msg.messageId, async () => {
+          if (sent) return null;
+          sent = true;
+          return cmdText;
+        });
+      } catch (e) {
+        await chSendText(config, msg.chatId, cmdText, { replyTo: msg.messageId });
+      }
       log(`[slash] 已回复 /${slash.parseCommand(content).cmd}`);
       return;
     }
@@ -314,9 +324,19 @@ async function processMessage(config, msg, accountId) {
     // 真流式: 生产-消费队列, onDelta 实时推入, 卡片流式消费显示
     const deltaQueue = [];
     let deltaDone = false;
+    let thinkingShown = false;
     let streamOut = { reply: '', sessionId: '', tools: [], thinking: '', streamMsgId: null, streamedText: '' };
     {
       const fallbackSessionId = session.deriveSessionId(msg, accountId);
+      // 执行状态反馈: 思考只提示一次(不透传思考正文), 每次工具调用单独提示
+      const onStatus = (status) => {
+        if (status.kind === 'thinking' && !thinkingShown) {
+          thinkingShown = true;
+          deltaQueue.push('\n\n🤔 深度思考中…\n\n');
+        } else if (status.kind === 'tool') {
+          deltaQueue.push(`\n🔧 调用工具 \`${status.name}\`…\n`);
+        }
+      };
       const runPromise = sessionRouter.runSession(
         config,
         msg,
@@ -326,7 +346,7 @@ async function processMessage(config, msg, accountId) {
         (chunk) => {
           deltaQueue.push(chunk); // 生产: 实时推入队列
         },
-        { control: sharedControl }
+        { control: sharedControl, onStatus }
       );
       // 消费: 同时启动卡片流式, 从队列取增量实时显示
       const consumePromise = (async () => {
