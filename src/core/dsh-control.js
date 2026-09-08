@@ -194,6 +194,44 @@ class DshControl {
     this.follows.set(sessionId, follow);
   }
 
+  /**
+   * 读取一个 Session 的最后一条助手输出（切换预览用）；无输出解析为空串。
+   * 通过临时 follow 流的快照向前扫描，拿到即断开，不占用常驻连接。
+   */
+  async lastOutput(sessionId) {
+    return new Promise((resolve, reject) => {
+      let handle;
+      let done = false;
+      const finish = (text, error) => {
+        if (done) return;
+        done = true;
+        clearTimeout(guard);
+        try { handle?.close(); } catch (e) {}
+        if (error) reject(error);
+        else resolve(text);
+      };
+      const guard = setTimeout(() => finish('', new Error('读取会话输出超时')), 8000);
+      this.api.openStream('session/follow', {
+        request: { address: { kind: 'session', sessionId }, maxMessages: 60 },
+      }, {
+        onItem: (value) => {
+          if (done || value?.type !== 'snapshot') return;
+          const records = value.records || [];
+          let text = '';
+          for (let i = records.length - 1; i >= 0; i--) {
+            const rec = records[i];
+            if (rec?.type === 'event' && rec.event?.type === 'assistant/message') {
+              text = this._messageText(rec.event.data.message);
+              if (text) break;
+            }
+          }
+          finish(text);
+        },
+        onError: (error) => finish('', error),
+      }).then((h) => { handle = h; }, (error) => finish('', error));
+    });
+  }
+
   /** journal/流式帧：首帧 snapshot，其后为逐条 event；0.1.3 另有 assistant-stream 呈现帧。 */
   _handleJournalItem(sessionId, value) {
     if (!value || typeof value !== 'object') return;

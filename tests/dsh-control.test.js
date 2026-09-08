@@ -355,3 +355,49 @@ test('DshControl.executeCommand 非参数名错误直接上抛', async () => {
   await assert.rejects(control.executeCommand('session-a', '/compact'), /session gone/);
   assert.strictEqual(api.calls.length, 1);
 });
+
+test('DshControl.lastOutput 从 follow 快照提取最后一条助手输出', async () => {
+  const api = new FakeApi();
+  const control = new DshControl({ api, bindings: fakeBindings(), promptTimeoutMs: 5000 });
+  await control.start();
+
+  const pending = control.lastOutput('session-a');
+  await flush();
+  // 快照: 倒序找到最后一条 assistant/message 的文本
+  api.emitItem({
+    type: 'snapshot',
+    records: [
+      { type: 'event', event: { type: 'user/message', data: { source: { kind: 'user' } } } },
+      { type: 'event', event: { type: 'assistant/message', data: { turn: 1, message: { content: [{ type: 'text', text: '之前的回答' }] } } } },
+      { type: 'event', event: { type: 'assistant/message', data: { turn: 2, message: { content: [{ type: 'text', text: '最新的回答' }] } } } },
+    ],
+  });
+
+  assert.strictEqual(await pending, '最新的回答');
+  // 快照拿到即断开临时流
+  assert.strictEqual(api.closedStreams, undefined);
+});
+
+test('DshControl.lastOutput 无助手消息时返回空串', async () => {
+  const api = new FakeApi();
+  const control = new DshControl({ api, bindings: fakeBindings(), promptTimeoutMs: 5000 });
+  await control.start();
+
+  const pending = control.lastOutput('session-empty');
+  await flush();
+  api.emitItem({ type: 'snapshot', records: [{ type: 'event', event: { type: 'user/message', data: { source: { kind: 'user' } } } }] });
+
+  assert.strictEqual(await pending, '');
+});
+
+test('DshControl.lastOutput 流错误时拒绝', async () => {
+  const api = new FakeApi();
+  const control = new DshControl({ api, bindings: fakeBindings(), promptTimeoutMs: 5000 });
+  await control.start();
+
+  const pending = control.lastOutput('session-x');
+  await flush();
+  api.emitError(Object.assign(new Error('boom'), { code: 'gateway/input-invalid' }));
+
+  await assert.rejects(pending, /boom/);
+});

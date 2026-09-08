@@ -2,6 +2,12 @@
 
 本项目所有重要变更均记录在此文件，格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.1] - 2026-09-08
+
+### Added
+- **Linux 支持**: install.js 新增 systemd 用户服务分支（install/uninstall/status），服务器部署免 sudo
+- Release 附带 macOS（launchd plist）与 Linux（systemd unit）服务模板
+
 ## [0.3.0] - 2026-09-08
 
 > 要求 dsh >= 0.1.2（Gateway wire，含 0.1.3）。

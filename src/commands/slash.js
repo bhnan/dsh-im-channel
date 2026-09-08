@@ -223,10 +223,21 @@ async function handleSlashCommand(config, msg, text, sessionId, log = () => {}, 
       try {
         if (!args.length) {
           const current = await services.control.resolveSession(msg, services.accountId, sessionId);
-          return { handled: true, reply: `当前 Session: \`${current}\`\n\n切换: \`/session <session-id>\`` };
+          return { handled: true, reply: `当前 Session: \`${current}\`\n\n切换: \`/session <session-id 或短 id>\`` };
         }
         const selected = await services.control.switchSession(msg, services.accountId, args[0]);
-        return { handled: true, reply: `✅ 已切换到 Session: \`${selected}\`` };
+        let preview = '';
+        try {
+          const last = await services.control.lastOutput(selected);
+          if (last) {
+            preview = `\n\n**该会话最后输出**\n> ${last.replace(/\n+/g, '\n> ').slice(0, 300)}${last.length > 300 ? '…' : ''}`;
+          } else {
+            preview = '\n（该会话暂无输出）';
+          }
+        } catch (e) {
+          preview = `\n（最后输出读取失败: ${e.message}）`;
+        }
+        return { handled: true, reply: `✅ 已切换到 Session: \`${selected}\`${preview}` };
       } catch (error) {
         return { handled: true, reply: `❌ Session 操作失败: ${error.message}` };
       }

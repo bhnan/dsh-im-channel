@@ -47,6 +47,8 @@ function replacePlistString(plist, placeholder, value) {
 function install() {
   console.log('=== 安装 DSH ↔ Feishu Bridge 插件 ===\n');
 
+  if (process.platform === 'linux') return installLinux();
+
   // 1. 复制 lark-session 插件到 headless profile
   console.log('[1/4] 安装 lark-session 持久会话插件...');
   if (!fs.existsSync(LARK_SESSION_SRC)) {
@@ -151,6 +153,8 @@ function install() {
 function uninstall() {
   console.log('=== 卸载 DSH ↔ Feishu Bridge 插件 ===\n');
 
+  if (process.platform === 'linux') return uninstallLinux();
+
   // 1. 停止并移除 launchd
   console.log('[1/2] 停止并移除 launchd 服务...');
   run('launchctl', ['bootout', `gui/${process.getuid()}`, 'com.dsh.lark-bridge']);
@@ -169,6 +173,10 @@ function uninstall() {
 
 function status() {
   console.log('=== DSH ↔ Feishu Bridge 安装状态 ===\n');
+
+  if (process.platform === 'linux') return statusLinux();
+
+  if (process.platform === 'linux') return statusLinux();
   const larkSessionOk = fs.existsSync(LARK_SESSION_DEST);
   console.log(`lark-session 插件: ${larkSessionOk ? '✅ 已安装' : '❌ 未安装'}`);
   const plistOk = fs.existsSync(PLIST_DEST);
