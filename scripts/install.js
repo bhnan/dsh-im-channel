@@ -175,8 +175,6 @@ function status() {
   console.log('=== DSH ↔ Feishu Bridge 安装状态 ===\n');
 
   if (process.platform === 'linux') return statusLinux();
-
-  if (process.platform === 'linux') return statusLinux();
   const larkSessionOk = fs.existsSync(LARK_SESSION_DEST);
   console.log(`lark-session 插件: ${larkSessionOk ? '✅ 已安装' : '❌ 未安装'}`);
   const plistOk = fs.existsSync(PLIST_DEST);
@@ -185,6 +183,89 @@ function status() {
   const pg = run('/bin/pgrep', ['-f', 'dsh-im-channel/src/index.js']);
   const running = (lc.code === 0 && /com\.dsh\.lark-bridge/.test(lc.out)) || pg.code === 0;
   console.log(`launchd 运行: ${running ? '✅ 运行中' : '❌ 未运行'}`);
+  const mcpOk = fs.existsSync(path.join(BRIDGE_DIR, 'node_modules', '@modelcontextprotocol', 'sdk'));
+  console.log(`MCP SDK: ${mcpOk ? '✅ 已安装' : '❌ 缺失 (npm install)'}`);
+}
+
+// ── Linux (systemd 用户服务) ────────────────────────────────────────────────
+
+const SYSTEMD_USER_DIR = path.join(os.homedir(), '.config', 'systemd', 'user');
+const UNIT_NAME = 'dsh-im-channel.service';
+
+function linuxServiceEnv() {
+  const cfgPath = path.join(BRIDGE_DIR, 'config.json');
+  let config = {};
+  try {
+    if (fs.existsSync(cfgPath)) config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  } catch (e) {}
+  return {
+    LARK_APP_ID: process.env.LARK_APP_ID || config.appId || '',
+    LARK_APP_SECRET: process.env.LARK_APP_SECRET || config.appSecret || '',
+    DSH_API_URL: process.env.DSH_API_URL || config.dshApiUrl || '',
+    DSH_HOME: process.env.DSH_HOME || path.join(os.homedir(), '.dsh'),
+    CONTROL_ALLOW_FROM: process.env.CONTROL_ALLOW_FROM
+      || (Array.isArray(config.controlAllowFrom) ? config.controlAllowFrom.join(',') : ''),
+  };
+}
+
+function installLinux() {
+  if (!fs.existsSync(LARK_SESSION_SRC)) {
+    console.error('   ❌ 未找到 dsh-lark-session 插件目录:', LARK_SESSION_SRC);
+    process.exit(1);
+  }
+  fs.mkdirSync(path.dirname(LARK_SESSION_DEST), { recursive: true });
+  fs.rmSync(LARK_SESSION_DEST, { recursive: true, force: true });
+  fs.cpSync(LARK_SESSION_SRC, LARK_SESSION_DEST, { recursive: true });
+  console.log('   ✅ lark-session 已安装到', LARK_SESSION_DEST);
+  const patchPath = path.join(LARK_SESSION_DEST, 'cordis.patch.yml');
+  let patch = fs.readFileSync(patchPath, 'utf8');
+  patch = patch.replace(/__BRIDGE_DIR__/g, BRIDGE_DIR);
+  fs.writeFileSync(patchPath, patch);
+
+  const nodeBin = process.env.LARK_NODE_BIN || process.execPath;
+  fs.mkdirSync(SYSTEMD_USER_DIR, { recursive: true });
+  const unit = [
+    '[Unit]',
+    'Description=DSH <-> Feishu Bridge (dsh-im-channel)',
+    'After=network-online.target',
+    'Wants=network-online.target',
+    '',
+    '[Service]',
+    'Type=simple',
+    `WorkingDirectory=${BRIDGE_DIR}`,
+    `ExecStart=${nodeBin} ${path.join(BRIDGE_DIR, 'src', 'index.js')}`,
+    'Restart=on-failure',
+    'RestartSec=5',
+    `Environment=DSH_HOME=${process.env.DSH_HOME || path.join(os.homedir(), '.dsh')}`,
+    '',
+    '[Install]',
+    'WantedBy=default.target',
+    '',
+  ].join('\n');
+  const unitPath = path.join(SYSTEMD_USER_DIR, UNIT_NAME);
+  fs.writeFileSync(unitPath, unit);
+  run('systemctl', ['--user', 'daemon-reload']);
+  const en = run('systemctl', ['--user', 'enable', '--now', UNIT_NAME]);
+  console.log(en.code === 0 ? '   ✅ systemd 服务已启用并启动' : '   ⚠️ 启动需手动: systemctl --user enable --now ' + UNIT_NAME);
+}
+
+function uninstallLinux() {
+  run('systemctl', ['--user', 'disable', '--now', UNIT_NAME]);
+  const unitPath = path.join(SYSTEMD_USER_DIR, UNIT_NAME);
+  if (fs.existsSync(unitPath)) fs.rmSync(unitPath);
+  run('systemctl', ['--user', 'daemon-reload']);
+  if (fs.existsSync(LARK_SESSION_DEST)) {
+    fs.rmSync(LARK_SESSION_DEST, { recursive: true, force: true });
+    console.log('   ✅ 插件已从 DSH profile 移除');
+  }
+  console.log('   ✅ systemd 服务已移除');
+}
+
+function statusLinux() {
+  const unitOk = fs.existsSync(path.join(SYSTEMD_USER_DIR, UNIT_NAME));
+  console.log(`systemd unit: ${unitOk ? '✅ 已安装' : '❌ 未安装'}`);
+  const st = run('systemctl', ['--user', 'is-active', UNIT_NAME]);
+  console.log(`服务状态: ${st.out.trim() === 'active' ? '✅ 运行中' : '❌ ' + (st.out.trim() || '未运行')}`);
   const mcpOk = fs.existsSync(path.join(BRIDGE_DIR, 'node_modules', '@modelcontextprotocol', 'sdk'));
   console.log(`MCP SDK: ${mcpOk ? '✅ 已安装' : '❌ 缺失 (npm install)'}`);
 }

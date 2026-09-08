@@ -40,7 +40,7 @@ test('scripts: install.js 存在且可解析', () => {
   assert.ok(src.includes('status'));
 });
 
-test('scripts: install 将 DSH_BIN 写入 launchd 配置值而非仅替换注释', () => {
+test('scripts: install 将 DSH_BIN 写入 launchd 配置值而非仅替换注释', { skip: process.platform !== 'darwin' }, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-im-channel-install-'));
   const homeDir = path.join(root, 'home');
   const dshHome = path.join(root, 'dsh-home');
