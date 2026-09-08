@@ -1,6 +1,6 @@
 {
   "name": "dsh-im-channel",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Multi-channel IM bridge for DeepSeek Harness: Feishu, Telegram, DingTalk, Slack, Discord — persistent sessions, true streaming, slash commands",
   "main": "src/plugin.js",
   "scripts": {
@@ -63,7 +63,8 @@
     "cordis.patch.yml",
     "config.example.json",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "com.dsh.lark-bridge.plist"
   ],
   "publishConfig": {
     "access": "public"

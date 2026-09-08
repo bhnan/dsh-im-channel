@@ -1,0 +1,15 @@
+[Unit]
+Description=DSH <-> Feishu Bridge (dsh-im-channel)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__BRIDGE_DIR__
+ExecStart=__NODE_BIN__ __BRIDGE_DIR__/src/index.js
+Restart=on-failure
+RestartSec=5
+Environment=DSH_HOME=__DSH_HOME__
+
+[Install]
+WantedBy=default.target

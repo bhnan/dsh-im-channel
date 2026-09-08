@@ -32,17 +32,22 @@ jobs:
       - name: Pack installer tarball
         run: npm pack
 
-      - name: Create GitHub Release with the installer
+      - name: Create GitHub Release with installer and service templates
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="v${{ inputs.version }}"
           tarball=$(ls *.tgz | head -1)
+          assets="$tarball com.dsh.lark-bridge.plist scripts/dsh-im-channel.service"
+          notes="DSH ↔ IM Channel 安装包（跨平台，纯 Node JS）。"
+          notes="${notes}\n- macOS 服务: launchd plist（com.dsh.lark-bridge.plist），npm i -g 后 node scripts/install.js install 注册 launchd"
+          notes="${notes}\n- Linux 服务: systemd 用户服务模板（scripts/dsh-im-channel.service），bash scripts/install-linux.sh 安装"
+          notes="${notes}\n要求 dsh >= 0.1.2（Gateway wire）"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release upload "$tag" "$tarball" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$tag" $assets --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$tag" "$tarball" \
+            gh release create "$tag" $assets \
               --repo "$GITHUB_REPOSITORY" \
               --title "dsh-im-channel ${{ inputs.version }}" \
-              --notes "DSH ↔ IM Channel 安装包。安装: npm i -g $tarball （要求 dsh >= 0.1.2，Gateway wire）"
+              --notes "$notes"
           fi
